@@ -7,12 +7,14 @@
  * Data past into the sorting workers
  */
 typedef struct sort_struct {
-    int size;
+    size_t size;
     int *numbers;
+    int start;
+    int id;
 } sort_struct;
 
-int cmpfunc (const void * a, const void *b) {
-    return (*(int*)a - *(int*)b);
+int cmpfunc(const void *a, const void *b) {
+    return (*(int *) a - *(int *) b);
 }
 
 /**
@@ -20,42 +22,51 @@ int cmpfunc (const void * a, const void *b) {
  * @param vargp
  * @return
  */
-void *sortThread(void *vargp){
-    sort_struct* s = (sort_struct*) vargp;
-    printf("sorting..");
-    qsort(s->numbers, s->size, sizeof(int), cmpfunc);
+void *sortThread(void *vargp) {
+    sort_struct *s = (sort_struct *) vargp;
+    printf("thread:%d sorting.. \n", s->id);
+    qsort(s->numbers + (s->start), s->size, sizeof(int), cmpfunc);
     return NULL;
 }
 
-void populateRandom(int *array, int size){
+void populateRandom(int *array, int size) {
     srand(time(NULL));
-    for(int i=0; i<size; i++){
+    for (int i = 0; i < size; i++) {
         array[i] = (rand() % 100);
     }
 }
 
 /**
- * Divide the data into smaller part
+ * Divide the data into smaller segments and sort every part in its own thread.
  * @param buff
  * @param size
  */
-void divide(int* numbers, int size, int nThreads){
-    sort_struct* sortStructs[nThreads];
+void divide(int *numbers, int size, int nThreads) {
+    sort_struct *sortStructs[nThreads];
     pthread_t threadIds[nThreads];
 
-    for(int i=0; i<nThreads; i++){
-        sortStructs[i] = (sort_struct*) malloc(sizeof(sort_struct));
+    int segSize = size / nThreads;
+
+    for (int i = 0; i < nThreads; i++) {
+        sortStructs[i] = (sort_struct *) malloc(sizeof(sort_struct));
+        sortStructs[i]->start = i * (segSize);
+        sortStructs[i]->size = segSize;
+        sortStructs[i]->numbers = numbers;
+        sortStructs[i]->id = i+1;
     }
 
-    for(int i=0; i<nThreads; i++){
-        sortStructs[i]->numbers = malloc((size/nThreads) * (sizeof(int)));
-        memcpy(sortStructs[i]->numbers, (numbers)+(i*size/nThreads), size/nThreads*(sizeof(int)));
+    pthread_t tmp;
+    for (int i = 0; i < nThreads; i++) {
+        pthread_create(&tmp, NULL, sortThread, (void *) sortStructs[i]);
     }
 
-    for(int i=0; i<nThreads; i++){
-        int *num = sortStructs[i]->numbers;
-        for(int i=0; i<(size/nThreads); i++){
-            printf("%d, ", num[i]);
+    pthread_join(tmp, NULL);
+
+    printf("all segments are now sorted: \n");
+
+    for (int i = 0; i < nThreads; i++) {
+        for (int j = 0; j < segSize; j++) {
+            printf("%d, ", numbers[j+(i*segSize)]);
         }
         printf("\n");
     }
@@ -65,7 +76,7 @@ void divide(int* numbers, int size, int nThreads){
 int main() {
     int numbers[100];
     populateRandom(numbers, 100);
-    divide(numbers, 100, 2);
+    divide(numbers, 100, 10);
 
 
     //pthread_join(tid, NULL);
