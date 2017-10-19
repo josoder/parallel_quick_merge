@@ -29,10 +29,58 @@ void *sortThread(void *vargp) {
     return NULL;
 }
 
+/**
+ * Put some random integers into the array
+ * @param array
+ * @param size
+ */
 void populateRandom(int *array, int size) {
     srand(time(NULL));
     for (int i = 0; i < size; i++) {
         array[i] = (rand() % 100);
+    }
+}
+
+
+void merge(int *numbers, int size, int nThreads, sort_struct *sortSegments){
+    int aux[size];
+
+    int j;
+
+    for(int i=0; i<nThreads; i+=2){
+        mergeHelper(sortSegments[i], sortSegments[i+1], aux, numbers);
+    }
+}
+
+void mergeHelper(sort_struct* seg1, sort_struct* seg2, int *aux, int *numbers){
+    int size = seg1->size + seg2->size;
+
+    int i = 0;
+    int j = seg1->start;
+    int k = seg2->start;
+
+    int jMax = j + seg1->size;
+    int kMax = k + seg2->size;
+
+    // cases:
+    // seg1 is exhausted,
+    // seg2 is exhausted
+    while(i<size){
+        if(j >= jMax){
+            while(i<size){
+              aux[i] = numbers[k++];
+            }
+        } else if (k >= kMax){
+            aux[i] = numbers[j++];
+        }
+
+        if(numbers[j] <= numbers[k]){
+            aux[i] = numbers[j++];
+        } else{
+            aux[i] = numbers[k++];
+        }
+
+        i++;
     }
 }
 
@@ -51,7 +99,6 @@ void divide(int *numbers, int size, int nThreads) {
         sortStructs[i] = (sort_struct *) malloc(sizeof(sort_struct));
         sortStructs[i]->start = i * (segSize);
         sortStructs[i]->size = segSize;
-        sortStructs[i]->numbers = numbers;
         sortStructs[i]->id = i+1;
     }
 
