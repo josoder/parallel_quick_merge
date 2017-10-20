@@ -1,33 +1,5 @@
-#include <stdio.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
-
-/**
- * Data past into the sorting workers
- */
-typedef struct sort_struct {
-    size_t size;
-    int *numbers;
-    int start;
-    int id;
-} sort_struct;
-
-int cmpfunc(const void *a, const void *b) {
-    return (*(int *) a - *(int *) b);
-}
-
-/**
- * Sort an array of numbers in a thread.
- * @param vargp
- * @return
- */
-void *sortThread(void *vargp) {
-    sort_struct *s = (sort_struct *) vargp;
-    printf("thread:%d sorting.. \n", s->id);
-    qsort(s->numbers + (s->start), s->size, sizeof(int), cmpfunc);
-    return NULL;
-}
+#include "common.h"
+#include "threaded_quicksort.h"
 
 /**
  * Put some random integers into the array
@@ -37,100 +9,87 @@ void *sortThread(void *vargp) {
 void populateRandom(int *array, int size) {
     srand(time(NULL));
     for (int i = 0; i < size; i++) {
-        array[i] = (rand() % 100);
+        array[i] = (rand() % 1000);
     }
 }
 
 
-void merge(int *numbers, int size, int nThreads, sort_struct *sortSegments){
-    int aux[size];
-
-    int j;
-
-    for(int i=0; i<nThreads; i+=2){
-        mergeHelper(sortSegments[i], sortSegments[i+1], aux, numbers);
-    }
-}
-
-void mergeHelper(sort_struct* seg1, sort_struct* seg2, int *aux, int *numbers){
-    int size = seg1->size + seg2->size;
-
+void mergeHelper(sort_struct *s1, sort_struct *s2 , int resSize, int res[resSize]) {
+    int length = resSize;
+    int j = 0;
+    int k = 0;
     int i = 0;
-    int j = seg1->start;
-    int k = seg2->start;
-
-    int jMax = j + seg1->size;
-    int kMax = k + seg2->size;
 
     // cases:
     // seg1 is exhausted,
     // seg2 is exhausted
-    while(i<size){
-        if(j >= jMax){
-            while(i<size){
-              aux[i] = numbers[k++];
+    while (i < length) {
+        if (j >= s1->length) {
+            while (i < length) {
+                res[i++] = s2->numbers[k++];
             }
-        } else if (k >= kMax){
-            aux[i] = numbers[j++];
+            break;
+        }
+        else if (k >= s2->length) {
+            while (i < length) {
+                res[i++] = s2->numbers[j++];
+            }
+            break;
         }
 
-        if(numbers[j] <= numbers[k]){
-            aux[i] = numbers[j++];
-        } else{
-            aux[i] = numbers[k++];
-        }
+        if (s1->numbers[j] < s2->numbers[k]) {
+            res[i++] = s1->numbers[j];
 
-        i++;
+            j++;
+        }
+        else {
+            res[i++] = s2->numbers[k];
+            k++;
+        }
     }
 }
 
-/**
- * Divide the data into smaller segments and sort every part in its own thread.
- * @param buff
- * @param size
- */
-void divide(int *numbers, int size, int nThreads) {
-    sort_struct *sortStructs[nThreads];
-    pthread_t threadIds[nThreads];
-
-    int segSize = size / nThreads;
-
-    for (int i = 0; i < nThreads; i++) {
-        sortStructs[i] = (sort_struct *) malloc(sizeof(sort_struct));
-        sortStructs[i]->start = i * (segSize);
-        sortStructs[i]->size = segSize;
-        sortStructs[i]->id = i+1;
-    }
-
-    pthread_t tmp;
-    for (int i = 0; i < nThreads; i++) {
-        pthread_create(&tmp, NULL, sortThread, (void *) sortStructs[i]);
-    }
-
-    pthread_join(tmp, NULL);
-
-    printf("all segments are now sorted: \n");
-
-    for (int i = 0; i < nThreads; i++) {
-        for (int j = 0; j < segSize; j++) {
-            printf("%d, ", numbers[j+(i*segSize)]);
-        }
-        printf("\n");
-    }
-
-}
 
 int main() {
-    int numbers[100];
-    populateRandom(numbers, 100);
-    divide(numbers, 100, 10);
+    int nThreads = 2;
+    int nNrs = 100;
+    int segmentSize = nNrs / nThreads;
 
+    int numbers[nNrs];
+    populateRandom(numbers, nNrs);
+    //sort_struct *segments[nThreads];
 
-    //pthread_join(tid, NULL);
+    // divide into segments
 
-    //for(int i=0; i<s->size; i++){
-    //    printf("%d, ", numbers[i]);
-    //}
+    sort_struct* sortStruct[2];
+
+    for(int i = 0; i<nThreads; i++){
+        sortStruct[i] = (sort_struct*) malloc(sizeof(sort_struct*));
+        sortStruct[i]->numbers = (int *) malloc((nNrs/2) * sizeof(int));
+        sortStruct[i]->id = i+1;
+        sortStruct[i]->length = segmentSize;
+    }
+
+    int offset = 0;
+    for(int i = 0; i<2; i++){
+        for(int j=0; j<nNrs/2; j++) {
+            sortStruct[i]->numbers[j] = numbers[j+offset];
+        }
+        offset = nNrs/2;
+    }
+
+    divideAndConquer(50, 2, numbers, sortStruct);
+
+    int res[nNrs];
+
+    mergeHelper(sortStruct[0], sortStruct[1], nNrs, res);
+
+    for(int i=0; i<nNrs; i++){
+        printf("%d ,", res[i]);
+        if(i%9==0&&i!=0){
+            puts("");
+        }
+    }
 
     return 0;
 }
